@@ -21,8 +21,8 @@ except Exception:
 APP_VERSION = "ASX-ML v7 (Strong-signal gating, CS Walk-Forward, daily holdings/prices)"
 
 # --------------------------- Page & Sidebar ---------------------------
-st.set_page_config(page_title="ASX ML Signals — Regression & Portfolio", layout="wide")
-st.title("ASX ML Signals — Regression & Cross-Sectional Portfolio")
+st.set_page_config(page_title="ASX Ben's Machine Learning App", layout="wide")
+st.title("ASX Ben's Machine Learning App")
 st.caption(f"Running: {APP_VERSION}")
 
 with st.sidebar:
@@ -44,7 +44,8 @@ with st.sidebar:
     exp_up_thr = st.number_input("Go Long if E[ret] ≥", value=0.002, step=0.001, format="%.3f", key="u_thr_up")
     exp_dn_thr = st.number_input("Go Short/Flat if E[ret] ≤", value=-0.002, step=0.001, format="%.3f", key="u_thr_dn")
     sizing_mode = st.selectbox("Position sizing mode", ["Binary (±1 or 0)", "Proportional (clip to [-1, 1])"], key="u_size_mode")
-    allow_short = st.toggle("Allow shorting", value=False, key="u_allow_short")
+    # Default changed to True
+    allow_short = st.toggle("Allow shorting", value=True, key="u_allow_short")
 
     st.markdown("---")
     st.header("Backtest (single-asset)")
@@ -216,7 +217,7 @@ def compute_metrics_daily(returns, freq=252):
 def backtest_test_period_reg(
     df_feat_labels, model, feat_cols, df_raw,
     exp_up_thr=0.002, exp_dn_thr=-0.002,
-    sizing_mode="Binary (±1 or 0)", allow_short=False,
+    sizing_mode="Binary (±1 or 0)", allow_short=True,  # default changed to True
     costs_bps=5, test_frac=0.2
 ):
     n = len(df_feat_labels)

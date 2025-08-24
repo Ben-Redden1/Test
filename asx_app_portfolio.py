@@ -569,12 +569,10 @@ for tkr in tickers:
         continue
 
     latest_close = float(df["Close"].iloc[-1])
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3 = st.columns(3)
     c1.metric("Latest Close (AUD)", f"{latest_close:.2f}")
     c2.metric(f"E[ret] next {horizon}d", f"{e_ret:.3%}")
-    c3.metric("MAE (test)", f"{mae:.4f}")
-    c4.metric("RMSE (test)", f"{rmse:.4f}")
-    c5.metric("Signal", signal)
+    c3.metric("Signal", signal)
 
     st.plotly_chart(plot_price(df, f"{tkr} — Close with SMAs"), use_container_width=True)
 
@@ -701,4 +699,5 @@ if st.button("Run portfolio backtest", key="p_run"):
                     res["frame"].to_csv().encode("utf-8"),
                     "portfolio_rebalance.csv", "text/csv"
                 )
+
     

@@ -4,6 +4,7 @@ import zipfile
 import datetime as dt
 import numpy as np
 import pandas as pd
+from pandas.api.types import CategoricalDtype
 import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
@@ -345,8 +346,8 @@ def walkforward_portfolio_backtest(
     allow_short=True,
     costs_bps=5,
     target_vol=None,        # e.g., 0.10 for 10% annualized; None = off
-    long_floor=0.0,         # NEW: only long if E_ret ≥ long_floor
-    short_floor=0.0,        # NEW: only short if E_ret ≤ −short_floor
+    long_floor=0.0,         # only long if E_ret ≥ long_floor
+    short_floor=0.0,        # only short if E_ret ≤ −short_floor
 ):
     """
     Walk-forward CS portfolio with strong-signal gating:
@@ -569,10 +570,20 @@ for tkr in tickers:
         continue
 
     latest_close = float(df["Close"].iloc[-1])
+
+    # --- Display metrics (MAE/RMSE removed) ---
     c1, c2, c3 = st.columns(3)
     c1.metric("Latest Close (AUD)", f"{latest_close:.2f}")
     c2.metric(f"E[ret] next {horizon}d", f"{e_ret:.3%}")
     c3.metric("Signal", signal)
+
+    # --- Collect for Signals Summary ---
+    summary_rows.append({
+        "Ticker": tkr,
+        "Signal": signal,
+        "E[ret]": e_ret,
+        "Close": latest_close
+    })
 
     st.plotly_chart(plot_price(df, f"{tkr} — Close with SMAs"), use_container_width=True)
 
@@ -621,11 +632,6 @@ for tkr in tickers:
             bt_csv = bt["frame"].to_csv(index=True).encode("utf-8")
             st.download_button(f"Download backtest frame (CSV) — {tkr}", bt_csv, f"{tkr}_backtest_reg.csv", "text/csv", key=f"bt_dl_{tkr}")
 
-# --------------------------- Summary Table ---------------------------
-if summary_rows:
-    st.write("### Summary")
-    st.dataframe(pd.DataFrame(summary_rows).set_index("Ticker"))
-
 # --------------------------- Zip download for all raw CSVs ---------------------------
 if csv_bundle:
     memzip = io.BytesIO()
@@ -648,7 +654,7 @@ colp5, colp6 = st.columns(2)
 cs_test_frac = colp5.slider("Test fraction (pooled time split)", 0.1, 0.6, 0.3, 0.05, key="p_test_frac")
 cs_target_vol = colp6.number_input("Target annual vol (0=off)", 0.00, 1.00, 0.00, 0.01, format="%.2f", key="p_tgtvol")
 
-# NEW: strong-signal gates
+# strong-signal gates
 colp7, colp8 = st.columns(2)
 cs_long_thr  = colp7.number_input("Min E[ret] to go LONG", 0.000, 0.050, 0.002, 0.001, format="%.3f", key="p_long_thr")
 cs_short_thr = colp8.number_input("Min |E[ret]| to go SHORT", 0.000, 0.050, 0.002, 0.001, format="%.3f", key="p_short_thr")
@@ -700,4 +706,36 @@ if st.button("Run portfolio backtest", key="p_run"):
                     "portfolio_rebalance.csv", "text/csv"
                 )
 
-    
+# --------------------------- Signals Summary (Bottom) ---------------------------
+if summary_rows:
+    st.markdown("---")
+    st.header("Signals Summary (all tickers)")
+
+    sum_df = pd.DataFrame(summary_rows)
+
+    # Normalize + order by signal (BUY → HOLD → SELL), then by expected return
+    sum_df["Signal"] = sum_df["Signal"].str.upper()
+    cat = CategoricalDtype(["BUY", "HOLD", "SELL"], ordered=True)
+    sum_df["Signal"] = sum_df["Signal"].astype(cat)
+    sum_df = sum_df.sort_values(["Signal", "E[ret]"], ascending=[True, False])
+
+    st.dataframe(
+        sum_df.set_index("Ticker")
+              .style.format({"Close": "{:.2f}", "E[ret]": "{:.2%}"}),
+        use_container_width=True
+    )
+
+    # Quick counts by class
+    counts = sum_df["Signal"].value_counts().reindex(["BUY", "HOLD", "SELL"]).fillna(0).astype(int)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("BUY",  int(counts.get("BUY", 0)))
+    c2.metric("HOLD", int(counts.get("HOLD", 0)))
+    c3.metric("SELL", int(counts.get("SELL", 0)))
+
+    # Optional: download
+    st.download_button(
+        "Download signals (CSV)",
+        sum_df.to_csv(index=False).encode("utf-8"),
+        "signals_summary.csv",
+        "text/csv"
+    )
